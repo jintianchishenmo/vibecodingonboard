@@ -1,0 +1,23 @@
+{
+  "name": "vibecodingonboard",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/server.ts",
+    "create-user": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/cli/create-user.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "tar": "^7.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}
