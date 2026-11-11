@@ -1,96 +1,94 @@
-# vibecodingonboard
+# landingzone
 
-> **中文简介**：vibecodingonboard 是一个小型 Node.js/TypeScript 平台，用 Docker 构建并部署用户上传的应用，通过 Traefik 把每个应用路由到 `<app>.<LZ_APPS_DOMAIN>` 域名。用户用 `npm run create-user` 创建账号并获取 API token，然后把项目打成 `.tgz` 上传即可部署。本仓库包含平台源码、`infra/` 下的 Traefik 配置、`.env.example` 环境变量模板，以及下文英文文档中的完整安装和使用说明。
+给用 AI 写完代码、但不会部署的人。
 
-A small Node.js/TypeScript platform that builds and deploys user apps with Docker, and routes them with [Traefik](https://traefik.io) at `http://<app>.<LZ_APPS_DOMAIN>`.
+在 Cursor、Claude Code 或其他 AI 编程工具里说一句「帮我部署」。你的 AI 选择云、地域和怎么启动，本机的 MCP 用你自己的 AWS 或阿里云账号开一台小服务器，跑起来，交回一个能打开的网址。你不需要会服务器、Docker、Nginx 或域名。
 
-Users authenticate with a per-user API token, upload a project as a gzipped tar (`.tgz`), and the platform detects how to run it, builds a Docker image, starts the container, and exposes it on a per-app domain. Apps are isolated per user, count against a per-user quota, and their build logs are kept on disk.
+```
+你的 AI 工具 ──stdio──▶ MCP（你的电脑，开源）──▶ 你自己的 AWS Lightsail 或阿里云轻量服务器 ──▶ http://公网IP
+```
 
-## What it does
+MCP 只做接口：保存密钥、创建或复用一台机器、放行端口、上传代码、取日志、销毁。看项目、决定地域、规格和启动方式，由你的 AI 来做。
 
-- **Token-based API.** Users are created with a CLI (`npm run create-user`). The API token is printed once and only stored as a SHA-256 hash. All `/v1` endpoints require `Authorization: Bearer <token>`.
-- **Deploy by upload.** `POST /v1/apps/<name>/deployments` accepts a gzipped tar of a project (up to `LZ_MAX_UPLOAD_MB` MB). The deployment record is created immediately and the build runs in the background.
-- **Project type detection** (when the project has no `Dockerfile`, one is generated):
-  - A project with its own `Dockerfile` is built as-is (the app port is read from its `EXPOSE` line, default 3000).
-  - A Node project with a `start` script is run as a Node server on port 3000.
-  - A Node project with a `build` script (output in `dist/`, `build/` or `out/`) is served as a static site via nginx.
-  - A folder with a plain `index.html` is served as a static site via nginx.
-- **Routing.** Each app container is attached to the `lz-net` Docker network with Traefik labels, so Traefik (started by `infra:up`) routes requests to `http://<app>.<LZ_APPS_DOMAIN>`. With the default `LZ_APPS_DOMAIN=localhost` this works out of the box, since browsers resolve `*.localhost` to `127.0.0.1`.
-- **Resource limits.** Every app container gets `--memory` / `--cpus` limits (from `LZ_APP_MEMORY` / `LZ_APP_CPUS`), a pids limit, and `no-new-privileges`. Apps that crash right after starting are detected and stopped.
-- **Quotas.** Each user has an `app_limit`. Exceeding it returns `quota_exceeded` with the `LZ_UPGRADE_URL` where users are told to top up or upgrade.
-- **Storage.** A SQLite database (`node:sqlite`, no external dependencies) plus `uploads/`, `builds/` and `logs/` directories, all under `LZ_DATA_DIR` (default `data/`). Build logs can be tailed via the API while a deployment is not yet running.
+## 开源与商业化
 
-## Requirements
+这个仓库是开源的 MCP，许可是 [MIT](mcp/LICENSE)。你可以自由使用、修改和分发它。
 
-- **Node.js >= 24** (uses the built-in `node:sqlite` module and `--env-file-if-exists`).
-- **Docker** with the Compose plugin (both the platform and Traefik shell out to the `docker` CLI).
+托管平台不在这个仓库里，也不开源。账号、额度、由我们代为运行的访问地址，是我们保留的商业服务。我们保留运营这项服务并对其收费的权利。MIT 只覆盖本仓库的 MCP，不覆盖托管服务，也不覆盖 landingzone 作为托管服务的名称。
 
-## Setup
+版权 © 2026 landingzone contributors。
+
+## 使用
+
+密钥只写在你电脑的 `~/.landingzone/`，工具的返回值里不会出现密钥。
+
+1. 把 MCP 加进你的 AI 工具。
+2. 把 AWS 或阿里云的 Access Key 交给 AI，让它调用 `set_credentials`。
+3. 在项目里说「帮我部署」。
+
+AWS 用 Lightsail，按小时计费，SSH 只对你当前的公网 IP 开放。阿里云用轻量应用服务器，创建时按月预付，防火墙默认开放 22、80、443。`destroy` 会删除 AWS 实例；阿里云这台机器需要你在控制台释放，否则当月费用还在。
+
+先构建：
 
 ```bash
-cp .env.example .env   # then edit values as needed
+cd mcp
 npm install
-npm run infra:up       # start Traefik on the lz-net network
-npm run create-user -- you@example.com 1   # prints the API token once — save it
-npm start              # API on http://localhost:8787
+npm run build
 ```
 
-### npm scripts
-
-| Script | What it does |
-| --- | --- |
-| `npm run infra:up` | Start the Traefik edge router (`docker compose -f infra/docker-compose.yml up -d`) |
-| `npm run infra:down` | Stop it (`docker compose -f infra/docker-compose.yml down`) |
-| `npm start` | Run the platform API on `LZ_API_PORT` (default 8787) |
-| `npm run create-user -- <email> [app_limit]` | Create a user and print their API token (default `app_limit` is 1) |
-| `npm run typecheck` | Type-check the project with `tsc` |
-
-### Configuration
-
-All settings come from environment variables, loaded from `.env` if present. See [`.env.example`](.env.example) for the full list with comments: API port, apps domain, public scheme/port, data directory, upload size limit, app resource limits, and the upgrade URL shown on quota errors.
-
-## API
-
-| Method & path | Description |
-| --- | --- |
-| `GET /healthz` | Liveness check (no auth) |
-| `GET /pricing` | Placeholder for the future top-up page (no auth) |
-| `GET /v1/apps` | List your apps and your app quota |
-| `GET /v1/apps/:name` | One app's details (live status, latest deployment) |
-| `POST /v1/apps/:name/deployments` | Deploy: request body is the gzipped tar of the project |
-| `GET /v1/apps/:name/logs?lines=100` | Tail the running app's container logs (max 1000 lines) |
-| `GET /v1/deployments/:id` | Deployment status; includes the tail of the build log unless running |
-
-App names are 3-40 characters of lowercase letters, digits and hyphens (no leading/trailing hyphen), and a few names like `api` and `www` are reserved.
-
-### Deploy example
+Claude Code 里把路径换成你机器上 `mcp/dist/index.js` 的绝对路径：
 
 ```bash
-tar czf app.tgz -C my-project .
-curl -X POST http://localhost:8787/v1/apps/my-app/deployments \
-  -H "Authorization: Bearer lz_..." \
-  -H "Content-Type: application/gzip" \
-  --data-binary @app.tgz
+claude mcp add landingzone -- node "/绝对路径/mcp/dist/index.js"
 ```
 
-The response has status `building`; poll `GET /v1/deployments/<id>` until the status is `running` (then visit `http://my-app.localhost/`) or `failed` (then read `build_log_tail`).
+Cursor 或其他 MCP 客户端：
 
-## Repository layout
-
-```
-src/
-  server.ts         HTTP API, routing, upload handling
-  deploy.ts         Deployment pipeline: unpack -> detect -> build -> run
-  detect.ts         Project type detection and generated Dockerfiles
-  docker.ts         docker CLI wrapper
-  db.ts             SQLite schema and queries
-  auth.ts           Token creation and hashing
-  config.ts         Environment configuration
-  cli/create-user.ts
-infra/
-  docker-compose.yml  Traefik edge router on the lz-net network
+```json
+{
+  "mcpServers": {
+    "landingzone": {
+      "command": "node",
+      "args": ["/绝对路径/mcp/dist/index.js"]
+    }
+  }
+}
 ```
 
-## License
+## 你的 AI 要填的参数
 
-[MIT](LICENSE)
+| 参数 | 含义 |
+|---|---|
+| `runtime` | `dockerfile`、`node` 或 `static` |
+| `port` | 应用监听端口。静态站用 80 |
+| `region` | 例如 `ap-southeast-1`、`cn-hongkong` |
+| `size` | `micro` 约 1 GiB，`small` 约 2 GiB |
+
+`node` 需要 `package.json` 里有 `start`，并监听 `PORT`。`static` 需要根目录的 `index.html`，或者 `build` 脚本产物在 `dist/`、`build/` 或 `out/`。`dockerfile` 用项目里的 Dockerfile。
+
+单次上传压缩后不超过 50 MB。打包时跳过 `node_modules`、`.git` 和常见构建缓存。
+
+## MCP 接口
+
+| 工具 | 作用 |
+|---|---|
+| `set_credentials` | 把 AWS 或阿里云的 Access Key 存到本机。返回账号标识，不回显密钥 |
+| `deploy` | 创建或复用一台小服务器并运行这个目录。成功返回网址，失败返回短日志 |
+| `status` | 查看一台，或不填名字时列出本机记录的应用 |
+| `logs` | 容器最近的输出 |
+| `open_port` | 在这台机器的防火墙上放行一个 TCP 端口 |
+| `destroy` | 删除 AWS 实例，或停止阿里云实例 |
+
+## 开发
+
+需要 Node.js 20 或更高版本。
+
+```bash
+cd mcp
+npm install
+npm test
+```
+
+## 许可
+
+[MIT](mcp/LICENSE)。托管平台不在此许可内。

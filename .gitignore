@@ -1,30 +1,3 @@
-# Dependencies
 node_modules/
-
-# Local runtime data: SQLite database, uploads, build dirs, logs
-data/
-*.db
-*.db-shm
-*.db-wal
-*.sqlite
-*.sqlite3
-
-# Environment / secrets
+dist/
 .env
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-
-# OS junk
-.DS_Store
-Thumbs.db
-Desktop.ini
-
-# Editor junk
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
