@@ -1,0 +1,36 @@
+{
+  "name": "landingzone-mcp",
+  "version": "0.2.0",
+  "description": "Open source MCP for vibe coding. Your AI deploys a project onto your own AWS or Aliyun account and returns a URL.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "landingzone-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "tsc && node --test test/core.test.js"
+  },
+  "dependencies": {
+    "@alicloud/openapi-core": "^1.0.9",
+    "@alicloud/swas-open20200601": "^4.0.0",
+    "@aws-sdk/client-lightsail": "^3.1166.0",
+    "@aws-sdk/client-sts": "^3.1166.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "ssh2": "^1.17.0",
+    "tar": "^7.5.22",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/ssh2": "^1.15.6",
+    "typescript": "^7.0.2"
+  }
+}
